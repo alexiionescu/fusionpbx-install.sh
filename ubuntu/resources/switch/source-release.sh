@@ -45,6 +45,13 @@ if [ $(echo "$switch_version" | tr -d '.') -gt 1100 ]; then
 	make install
 	
 	# spandsp
+	# Delete the system cached spandsp header and directories completely
+	rm -f /usr/local/include/spandsp.h /usr/include/spandsp.h
+	rm -rf /usr/local/include/spandsp/ /usr/include/spandsp/
+
+	# Force delete old shared object binaries
+	rm -f /usr/local/lib/libspandsp* /usr/lib/libspandsp*
+	ldconfig
 	cd /usr/src
 	git clone https://github.com/freeswitch/spandsp.git spandsp
 	cd spandsp
@@ -52,6 +59,7 @@ if [ $(echo "$switch_version" | tr -d '.') -gt 1100 ]; then
 	/usr/bin/sed -i 's/AC_PREREQ(\[2\.71\])/AC_PREREQ([2.69])/g' /usr/src/spandsp/configure.ac
 	sh autogen.sh
 	./configure
+	make clean
 	make
 	make install
 	ldconfig
@@ -78,6 +86,11 @@ if [ $(echo "$switch_version" | tr -d '.') -gt 1100 ]; then
 	#mv freeswitch-$switch_version.-release freeswitch-$switch_version
  
 	cd /usr/src/freeswitch-$switch_version
+
+	if [ -n "$switch_commit" ]; then
+		echo "Resetting to commit $switch_commit"
+		git reset --hard "$switch_commit"
+	fi
 
 	# bootstrap is needed if using git
 	./bootstrap.sh -j

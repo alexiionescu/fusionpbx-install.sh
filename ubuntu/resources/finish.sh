@@ -7,6 +7,13 @@ cd "$(dirname "$0")"
 . ./config.sh
 . ./colors.sh
 
+# check system_branch if 5.3 or older
+target_version="5.3"
+lowest=$(printf '%s\n%s' "$system_branch" "$target_version" | sort -V | head -n1)
+if [ "$lowest" = "$target_version" ]; then
+    echo "[upgrade.php] System branch is 5.3 or older. Use old upgrade scripts..."
+	older_upgrade_scripts=yes
+fi
 #database details
 database_host=127.0.0.1
 database_port=5432
@@ -38,8 +45,14 @@ sed -i /etc/fusionpbx/config.conf -e s:"{database_name}:$database_name:"
 sed -i /etc/fusionpbx/config.conf -e s:"{database_username}:$database_username:"
 sed -i /etc/fusionpbx/config.conf -e s:"{database_password}:$database_password:"
 
+echo "[upgrade.php] Using php version $(php -v | head -n 1)"
 #add the database schema
+echo "[upgrade.php] Adding the database schema..."
+if [ "$older_upgrade_scripts" = "yes" ]; then
+cd /var/www/fusionpbx && php /var/www/fusionpbx/core/upgrade/upgrade_schema.php > /dev/null 2>&1
+else
 cd /var/www/fusionpbx && /usr/bin/php /var/www/fusionpbx/core/upgrade/upgrade.php --schema
+fi
 
 #get the server hostname
 if [ .$domain_name = .'hostname' ]; then
@@ -57,9 +70,14 @@ domain_uuid=$(/usr/bin/php /var/www/fusionpbx/resources/uuid.php);
 #add the domain name
 psql --host=$database_host --port=$database_port --username=$database_username -c "insert into v_domains (domain_uuid, domain_name, domain_enabled) values('$domain_uuid', '$domain_name', 'true');"
 
-#run app defaults
-cd /var/www/fusionpbx && /usr/bin/php /var/www/fusionpbx/core/upgrade/upgrade.php --defaults
 
+#run app defaults
+echo "[upgrade.php] Running application defaults..."
+if [ "$older_upgrade_scripts" = "yes" ]; then
+cd /var/www/fusionpbx && php /var/www/fusionpbx/core/upgrade/upgrade_domains.php
+else
+cd /var/www/fusionpbx && /usr/bin/php /var/www/fusionpbx/core/upgrade/upgrade.php --defaults
+fi
 #add the user
 user_uuid=$(/usr/bin/php /var/www/fusionpbx/resources/uuid.php);
 user_salt=$(/usr/bin/php /var/www/fusionpbx/resources/uuid.php);
@@ -90,12 +108,30 @@ sed -i /etc/freeswitch/autoload_configs/xml_cdr.conf.xml -e s:"{v_project_path}:
 sed -i /etc/freeswitch/autoload_configs/xml_cdr.conf.xml -e s:"{v_user}:$xml_cdr_username:"
 sed -i /etc/freeswitch/autoload_configs/xml_cdr.conf.xml -e s:"{v_pass}:$xml_cdr_password:"
 
-#update application defaults
-cd /var/www/fusionpbx && /usr/bin/php /var/www/fusionpbx/core/upgrade/upgrade.php --defaults
 
+#update application defaults
+echo "[upgrade.php] Updating application defaults..."
+if [ "$older_upgrade_scripts" = "yes" ]; then
+cd /var/www/fusionpbx && php /var/www/fusionpbx/core/upgrade/upgrade_domains.php
+else
+cd /var/www/fusionpbx && /usr/bin/php /var/www/fusionpbx/core/upgrade/upgrade.php --defaults
+fi
 #update permissions
+echo "[upgrade.php] Updating permissions..."
 cd /var/www/fusionpbx && /usr/bin/php /var/www/fusionpbx/core/upgrade/upgrade.php --permissions
 
+echo "[upgrade.php] Updating sip-ip and rtp-ip to match $DOMAIN_NAME"
+if [ -n "$DOMAIN_NAME" ]; then
+	# Force FusionPBX to provision the internal profile to your custom IP instead of the local macro
+	psql --host=$database_host --port=$database_port --username=$database_username -c "UPDATE v_sip_profile_settings SET sip_profile_setting_value = '$DOMAIN_NAME' WHERE sip_profile_setting_name IN ('sip-ip', 'rtp-ip');"
+
+	# 1. Update the individual profile keys (sip-ip and rtp-ip) for the IPv4 profiles
+	psql --host=$database_host --port=$database_port --username=$database_username -c "UPDATE v_sip_profile_settings SET sip_profile_setting_value = '$DOMAIN_NAME' WHERE sip_profile_setting_name IN ('sip-ip', 'rtp-ip') AND sip_profile_uuid IN (SELECT sip_profile_uuid FROM v_sip_profiles WHERE sip_profile_name IN ('internal', 'external'));"
+
+	# 2. Update the base profile bind templates if they are hardcoded
+	psql --host=$database_host --port=$database_port --username=$database_username -c "UPDATE v_sip_profiles SET sip_profile_enabled = 'true' WHERE sip_profile_name IN ('internal', 'external');"
+
+fi
 #restart freeswitch
 /bin/systemctl daemon-reload
 /bin/systemctl restart freeswitch
@@ -105,6 +141,7 @@ mkdir -p /var/run/fusionpbx
 chown -R www-data:www-data /var/run/fusionpbx
 
 #install the services
+echo "[upgrade.php] Installing services..."
 cd /var/www/fusionpbx && /usr/bin/php /var/www/fusionpbx/core/upgrade/upgrade.php --services
 
 #install crontab

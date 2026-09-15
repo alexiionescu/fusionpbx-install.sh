@@ -18,7 +18,12 @@ apt-get install -y ghostscript libtiff5-dev libtiff-tools at
 if [ .$system_branch = .'master' ]; then
 	verbose "Using master"
 	branch=""
+elif [ -n "$system_branch" ]; then
+	# If a specific version variable is provided in config.sh, use it directly!
+	verbose "Using custom configured version $system_branch"
+	branch="-b $system_branch --single-branch"
 else
+	# Dynamic fallback if no branch variable was specified to latest stable release
 	system_major=$(git ls-remote --heads https://github.com/fusionpbx/fusionpbx.git | cut -d/ -f 3 | grep -P '^\d+\.\d+' | sort | tail -n 1 | cut -d. -f1)
 	system_minor=$(git ls-remote --tags https://github.com/fusionpbx/fusionpbx.git $system_major.* | cut -d/ -f3 |  grep -P '^\d+\.\d+' | sort | tail -n 1 | cut -d. -f2)
 	system_version=$system_major.$system_minor

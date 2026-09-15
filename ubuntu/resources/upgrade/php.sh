@@ -21,6 +21,9 @@ apt remove -y php8.1 php8.1-cli php8.1-fpm php8.1-pgsql php8.1-sqlite3 php8.1-od
 #remove php 8.2
 apt remove -y php8.2 php8.2-cli php8.2-fpm php8.2-pgsql php8.2-sqlite3 php8.2-odbc php8.2-curl php8.2-imap php8.2-xml php8.2-gd php8.2-mbstring php8.2-ldap
 
+#remove php 8.3
+apt remove -y php8.3 php8.3-cli php8.3-fpm php8.3-pgsql php8.3-sqlite3 php8.3-odbc php8.3-curl php8.3-imap php8.3-xml php8.3-gd php8.3-mbstring php8.3-ldap
+
 #add ppa repo
 which add-apt-repository || apt-get install -y software-properties-common
 LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
@@ -48,6 +51,11 @@ if [ ."$php_version" = ."8.1" ]; then
 
 	#set the PHP ini file path
 	php_ini_file='/etc/php/8.1/fpm/php.ini'
+
+	# make it default
+	update-alternatives --set php /usr/bin/php8.1
+	update-alternatives --set phar /usr/bin/phar8.1
+	update-alternatives --set phar.phar /usr/bin/phar.phar8.1
 fi
 
 #update config if source is being used

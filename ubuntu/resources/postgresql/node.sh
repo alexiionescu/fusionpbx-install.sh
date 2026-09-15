@@ -15,8 +15,13 @@ if [ .$database_password = .'random' ]; then
 fi
 
 #show this server's addresses
-server_address=$(hostname -I);
-echo "This Server Address: $server_address"
+if [ -z "$DOMAIN_NAME" ]; then
+	server_address=$(hostname -I);
+	echo "This Server Address: $server_address"
+else
+	server_address=$DOMAIN_NAME
+	echo "This Server Address: $server_address"
+fi
 
 #nodes addresses
 read -p "Enter all Node IP Addresses: " nodes
