@@ -120,17 +120,19 @@ fi
 echo "[upgrade.php] Updating permissions..."
 cd /var/www/fusionpbx && /usr/bin/php /var/www/fusionpbx/core/upgrade/upgrade.php --permissions
 
-echo "[upgrade.php] Updating sip-ip and rtp-ip to match $DOMAIN_NAME"
 if [ -n "$DOMAIN_NAME" ]; then
-	# Force FusionPBX to provision the internal profile to your custom IP instead of the local macro
-	psql --host=$database_host --port=$database_port --username=$database_username -c "UPDATE v_sip_profile_settings SET sip_profile_setting_value = '$DOMAIN_NAME' WHERE sip_profile_setting_name IN ('sip-ip', 'rtp-ip');"
+	# check if $DOMAIN_NAME does not match the first IP from hostname -I
+	first_ip=$(hostname -I | awk '{print $1}')
+	if [ "$DOMAIN_NAME" != "$first_ip" ]; then
+		echo "[upgrade.php] DOMAIN_NAME ($DOMAIN_NAME) does not match the first IP ($first_ip)"
+		psql --host=$database_host --port=$database_port --username=$database_username -c "UPDATE v_sip_profile_settings SET sip_profile_setting_value = '$DOMAIN_NAME' WHERE sip_profile_setting_name IN ('sip-ip', 'rtp-ip');"
 
-	# 1. Update the individual profile keys (sip-ip and rtp-ip) for the IPv4 profiles
-	psql --host=$database_host --port=$database_port --username=$database_username -c "UPDATE v_sip_profile_settings SET sip_profile_setting_value = '$DOMAIN_NAME' WHERE sip_profile_setting_name IN ('sip-ip', 'rtp-ip') AND sip_profile_uuid IN (SELECT sip_profile_uuid FROM v_sip_profiles WHERE sip_profile_name IN ('internal', 'external'));"
-
-	# 2. Update the base profile bind templates if they are hardcoded
-	psql --host=$database_host --port=$database_port --username=$database_username -c "UPDATE v_sip_profiles SET sip_profile_enabled = 'true' WHERE sip_profile_name IN ('internal', 'external');"
-
+		# 1. Update the individual profile keys (sip-ip and rtp-ip) for the IPv4 profiles
+		psql --host=$database_host --port=$database_port --username=$database_username -c "UPDATE v_sip_profile_settings SET sip_profile_setting_value = '$DOMAIN_NAME' WHERE sip_profile_setting_name IN ('sip-ip', 'rtp-ip') AND sip_profile_uuid IN (SELECT sip_profile_uuid FROM v_sip_profiles WHERE sip_profile_name IN ('internal', 'external'));"
+		# Force FusionPBX to provision the internal profile to your custom IP instead of the local macro
+		# 2. Update the base profile bind templates if they are hardcoded
+		psql --host=$database_host --port=$database_port --username=$database_username -c "UPDATE v_sip_profiles SET sip_profile_enabled = 'true' WHERE sip_profile_name IN ('internal', 'external');"
+	fi
 fi
 #restart freeswitch
 /bin/systemctl daemon-reload
