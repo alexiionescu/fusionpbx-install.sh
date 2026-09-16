@@ -7,11 +7,11 @@ cd "$(dirname "$0")"
 . ./config.sh
 . ./colors.sh
 
-# check system_branch if 5.3 or older
-target_version="5.3"
+# check system_branch if older than target_version for new upgrade scripts
+target_version="5.4"
 lowest=$(printf '%s\n%s' "$system_branch" "$target_version" | sort -V | head -n1)
-if [ "$lowest" = "$target_version" ]; then
-    echo "[upgrade.php] System branch is 5.3 or older. Use old upgrade scripts..."
+if [ "$lowest" != "$target_version" ]; then
+    echo "[upgrade.php] System branch $system_branch is older then $target_version. Use old upgrade scripts..."
 	older_upgrade_scripts=yes
 fi
 #database details
