@@ -13,7 +13,7 @@ apt update && apt upgrade -y
 apt install -y autoconf automake devscripts g++ git-core libncurses5-dev libtool make libjpeg-dev pkg-config flac  libgdbm-dev libdb-dev gettext sudo equivs plocate git dpkg-dev libpq-dev liblua5.2-dev libtiff5-dev libperl-dev libcurl4-openssl-dev libsqlite3-dev libpcre3-dev devscripts libspeexdsp-dev libspeex-dev libldns-dev libedit-dev libopus-dev libmemcached-dev libshout3-dev libmpg123-dev libmp3lame-dev yasm nasm libsndfile1-dev libuv1-dev libvpx-dev libavformat-dev libswscale-dev libspandsp-dev pip libpq-dev libvlc-dev uuid-dev sox libsox-fmt-all
 
 # additional dependencies
-apt install -y swig3.0 unzip sox wget
+apt install -y unzip sox wget # swig3.0 # not used for C compile
 
 #we are about to move out of the executing directory so we need to preserve it to return after we are done
 CWD=$(pwd)
@@ -121,9 +121,21 @@ sed -i /usr/src/freeswitch-$switch_version/modules.conf -e s:'applications/mod_a
 
 # prepare the build
 #./configure --prefix=/usr/local/freeswitch --enable-core-pgsql-support --disable-fhs
-./configure -C --enable-portable-binary --disable-dependency-tracking \
---prefix=/usr --localstatedir=/var --sysconfdir=/etc \
---with-openssl --enable-core-pgsql-support
+if [ "$UBUNTU_VERSION" = "26.04" ]; then
+	# Ubuntu 26.04 ships with glibc 2.43+, 
+	# which enforces strict C23 const-correctness on standard library functions like strchr() (returning const char * when passed a const char *), 
+	# combined with FreeSWITCH's -Werror flag that turns every compiler warning into a fatal error
+	rm -f config.cache
+	./configure -C --enable-portable-binary --disable-dependency-tracking \
+		--prefix=/usr --localstatedir=/var --sysconfdir=/etc \
+		--with-openssl --enable-core-pgsql-support \
+		CFLAGS="-g -O2 -Wno-error" CXXFLAGS="-g -O2 -Wno-error"
+else
+    ./configure -C --enable-portable-binary --disable-dependency-tracking \
+    --prefix=/usr --localstatedir=/var --sysconfdir=/etc \
+    --with-openssl --enable-core-pgsql-support
+fi
+
 
 # compile and install
 make
